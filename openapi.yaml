@@ -21,3 +21,26 @@ paths:
                     type: string
                   message:
                     type: string
+  /fetch-doc:
+    get:
+      operationId: fetchGoogleDoc
+      summary: Fetch plain text content from a public Google Doc
+      parameters:
+        - name: docUrl
+          in: query
+          required: true
+          description: Public URL of the Google Doc
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Content fetched from the document
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  content:
+                    type: string
