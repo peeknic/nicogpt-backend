@@ -16,15 +16,23 @@ export default async function handler(req, res) {
     const html = await response.text();
     const dom = new JSDOM(html);
     const document = dom.window.document;
-    const rows = [...document.querySelectorAll('table tr')];
 
-    if (rows.length === 0) {
-      throw new Error('No table rows found in sheet HTML');
+    const table = document.querySelector('table');
+    if (!table) {
+      throw new Error('No <table> found in HTML');
     }
 
-    // FIX: use 'th, td' to support headers rendered with <th>
-    const headers = [...rows[0].querySelectorAll('th, td')].map(cell => cell.textContent.trim());
+    const rows = [...table.querySelectorAll('tr')];
+    if (rows.length === 0) {
+      throw new Error('No <tr> rows found in table');
+    }
 
+    // Get headers from first row: look for <td> or <th>
+    const headers = [...rows[0].querySelectorAll('td, th')].map(
+      cell => cell.textContent?.trim() || ''
+    );
+
+    // Process remaining rows
     const data = rows.slice(1).map(row => {
       const cells = [...row.querySelectorAll('td')];
       const obj = {};
