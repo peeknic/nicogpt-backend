@@ -8,13 +8,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const response = await fetch(sheetURL, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-        'Accept': 'text/html',
-      },
-    });
-
+    const response = await fetch(sheetURL);
     if (!response.ok) {
       throw new Error(`Failed to fetch sheet (HTTP ${response.status})`);
     }
@@ -22,15 +16,14 @@ export default async function handler(req, res) {
     const html = await response.text();
     const dom = new JSDOM(html);
     const document = dom.window.document;
-
     const rows = [...document.querySelectorAll('table tr')];
+
     if (rows.length === 0) {
       throw new Error('No table rows found in sheet HTML');
     }
 
-    const headers = [...rows[0].querySelectorAll('td')].map(td =>
-      td.textContent.trim().toLowerCase()
-    );
+    // Keep original header casing
+    const headers = [...rows[0].querySelectorAll('td')].map(td => td.textContent.trim());
 
     const data = rows.slice(1).map(row => {
       const cells = [...row.querySelectorAll('td')];
