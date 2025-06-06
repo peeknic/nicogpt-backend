@@ -22,8 +22,8 @@ export default async function handler(req, res) {
       throw new Error('No table rows found in sheet HTML');
     }
 
-    // Keep original header casing
-    const headers = [...rows[0].querySelectorAll('td')].map(td => td.textContent.trim());
+    // FIX: use 'th, td' to support headers rendered with <th>
+    const headers = [...rows[0].querySelectorAll('th, td')].map(cell => cell.textContent.trim());
 
     const data = rows.slice(1).map(row => {
       const cells = [...row.querySelectorAll('td')];
