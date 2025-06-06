@@ -16,8 +16,7 @@ export default async function handler(req, res) {
     const csvText = await response.text();
     const records = parse(csvText, {
       columns: true,
-      skip_empty_lines: true,
-      trim: true,
+      skip_empty_lines: true
     });
 
     res.status(200).json({ status: 'ok', rows: records });
