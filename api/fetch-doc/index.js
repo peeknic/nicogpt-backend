@@ -1,44 +1,31 @@
+import { JSDOM } from 'jsdom';
+
 export default async function handler(req, res) {
+  const sheetURL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTO58XfLRFpTGk-gAGozsnwFKlUzKvJpVeMfyLtTLoYJcl6rN8feyuPmdZurZm7oR10LhNfz3m3VsJK/pubhtml';
+
   try {
-    const { docUrl } = req.query;
-
-    if (!docUrl || !docUrl.includes('docs.google.com/document')) {
-      return res.status(400).json({
-        status: 'error',
-        message: "Missing or invalid 'docUrl' parameter"
-      });
-    }
-
-    // Extract Google Doc ID from the URL
-    const match = docUrl.match(/\/d\/([a-zA-Z0-9-_]+)/);
-    const docId = match?.[1];
-
-    if (!docId) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Could not extract document ID from URL'
-      });
-    }
-
-    // Build export URL to fetch plain text content
-    const exportUrl = `https://docs.google.com/document/d/${docId}/export?format=txt`;
-
-    const response = await fetch(exportUrl);
+    const response = await fetch(sheetURL);
     if (!response.ok) {
-      throw new Error(`Fetch failed: ${response.status}`);
+      throw new Error('Failed to fetch sheet');
     }
 
-    const text = await response.text();
+    const html = await response.text();
+    const dom = new JSDOM(html);
+    const document = dom.window.document;
+    const rows = [...document.querySelectorAll('table tr')];
 
-    return res.status(200).json({
-      status: 'ok',
-      content: text
+    const headers = [...rows[0].querySelectorAll('td')].map(td => td.textContent.trim().toLowerCase());
+    const data = rows.slice(1).map(row => {
+      const cells = [...row.querySelectorAll('td')];
+      const obj = {};
+      headers.forEach((key, i) => {
+        obj[key] = cells[i]?.textContent?.trim() || '';
+      });
+      return obj;
     });
 
-  } catch (error) {
-    return res.status(500).json({
-      status: 'error',
-      message: error.message
-    });
+    res.status(200).json({ status: 'ok', rows: data });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
   }
 }
