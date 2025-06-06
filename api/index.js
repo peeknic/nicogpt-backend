@@ -1,4 +1,3 @@
-import fetch from 'node-fetch';
 import { parse } from 'csv-parse/sync';
 
 export default async function handler(req, res) {
@@ -14,6 +13,6 @@ export default async function handler(req, res) {
 
     res.status(200).json({ status: 'ok', data: records });
   } catch (error) {
-    res.status(500).json({ status: 'error', message: error.message });
+    res.status(500).json({ status: 'error', message: error.toString() });
   }
 }
