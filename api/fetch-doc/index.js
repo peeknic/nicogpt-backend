@@ -18,26 +18,20 @@ export default async function handler(req, res) {
     const document = dom.window.document;
 
     const table = document.querySelector('table');
-    if (!table) {
-      throw new Error('No <table> found in HTML');
-    }
+    if (!table) throw new Error('No table found');
 
     const rows = [...table.querySelectorAll('tr')];
-    if (rows.length === 0) {
-      throw new Error('No <tr> rows found in table');
-    }
+    if (!rows.length) throw new Error('No table rows found');
 
-    // Get headers from first row: look for <td> or <th>
-    const headers = [...rows[0].querySelectorAll('td, th')].map(
-      cell => cell.textContent?.trim() || ''
+    const headers = [...rows[0].querySelectorAll('td, th')].map(cell =>
+      cell?.innerText?.trim() || ''
     );
 
-    // Process remaining rows
     const data = rows.slice(1).map(row => {
-      const cells = [...row.querySelectorAll('td')];
+      const cells = [...row.querySelectorAll('td, th')];
       const obj = {};
       headers.forEach((key, i) => {
-        obj[key] = cells[i]?.textContent?.trim() || '';
+        obj[key] = cells[i]?.innerText?.trim() || '';
       });
       return obj;
     });
