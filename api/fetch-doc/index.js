@@ -1,7 +1,3 @@
-export const config = {
-  runtime: 'nodejs',
-};
-
 import { JSDOM } from 'jsdom';
 
 export default async function handler(req, res) {
