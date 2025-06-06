@@ -3,18 +3,42 @@ export default async function handler(req, res) {
     const { docUrl } = req.query;
 
     if (!docUrl || !docUrl.includes('docs.google.com/document')) {
-      return res.status(400).json({ status: "error", message: "Missing or invalid 'docUrl' parameter" });
+      return res.status(400).json({
+        status: 'error',
+        message: "Missing or invalid 'docUrl' parameter"
+      });
     }
 
-    const exportUrl = docUrl.replace(/\/edit.*$/, '') + '/export?format=txt';
+    // Extract Google Doc ID from the URL
+    const match = docUrl.match(/\/d\/([a-zA-Z0-9-_]+)/);
+    const docId = match?.[1];
+
+    if (!docId) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Could not extract document ID from URL'
+      });
+    }
+
+    // Build export URL to fetch plain text content
+    const exportUrl = `https://docs.google.com/document/d/${docId}/export?format=txt`;
 
     const response = await fetch(exportUrl);
-    if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
+    if (!response.ok) {
+      throw new Error(`Fetch failed: ${response.status}`);
+    }
 
     const text = await response.text();
 
-    res.status(200).json({ status: "ok", content: text });
+    return res.status(200).json({
+      status: 'ok',
+      content: text
+    });
+
   } catch (error) {
-    res.status(500).json({ status: "error", message: error.message });
+    return res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
   }
 }
