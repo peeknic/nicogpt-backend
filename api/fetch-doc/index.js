@@ -8,7 +8,13 @@ export default async function handler(req, res) {
   }
 
   try {
-    const response = await fetch(sheetURL);
+    const response = await fetch(sheetURL, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+        'Accept': 'text/html',
+      },
+    });
+
     if (!response.ok) {
       throw new Error(`Failed to fetch sheet (HTTP ${response.status})`);
     }
