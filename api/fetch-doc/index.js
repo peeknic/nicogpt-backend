@@ -22,12 +22,9 @@ export default async function handler(req, res) {
       throw new Error('No table rows found in sheet HTML');
     }
 
-    // Extract headers from the first row
-    const headers = [...rows[0].querySelectorAll('td')].map(td =>
-      td.textContent.trim().toLowerCase()
-    );
+    const headerCells = [...rows[0].querySelectorAll('td, th')];
+    const headers = headerCells.map(cell => cell.textContent.trim().toLowerCase());
 
-    // Parse each remaining row into an object
     const data = rows.slice(1).map(row => {
       const cells = [...row.querySelectorAll('td')];
       const obj = {};
