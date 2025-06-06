@@ -1,4 +1,4 @@
-import { JSDOM } from 'jsdom';
+import { parse } from 'csv-parse/sync';
 
 export default async function handler(req, res) {
   const sheetURL = req.query.docUrl;
@@ -13,28 +13,14 @@ export default async function handler(req, res) {
       throw new Error(`Failed to fetch sheet (HTTP ${response.status})`);
     }
 
-    const html = await response.text();
-    const dom = new JSDOM(html);
-    const document = dom.window.document;
-
-    const rows = [...document.querySelectorAll('table tr')];
-    if (rows.length === 0) {
-      throw new Error('No table rows found in sheet HTML');
-    }
-
-    const headerCells = [...rows[0].querySelectorAll('td, th')];
-    const headers = headerCells.map(cell => cell.textContent.trim().toLowerCase());
-
-    const data = rows.slice(1).map(row => {
-      const cells = [...row.querySelectorAll('td')];
-      const obj = {};
-      headers.forEach((key, i) => {
-        obj[key] = cells[i]?.textContent?.trim() || '';
-      });
-      return obj;
+    const csvText = await response.text();
+    const records = parse(csvText, {
+      columns: true,
+      skip_empty_lines: true,
+      trim: true,
     });
 
-    res.status(200).json({ status: 'ok', rows: data });
+    res.status(200).json({ status: 'ok', rows: records });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
   }
