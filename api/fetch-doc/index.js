@@ -16,22 +16,20 @@ export default async function handler(req, res) {
     const html = await response.text();
     const dom = new JSDOM(html);
     const document = dom.window.document;
-
     const table = document.querySelector('table');
-    if (!table) throw new Error('No table found');
+
+    if (!table) {
+      throw new Error('No table found in published sheet');
+    }
 
     const rows = [...table.querySelectorAll('tr')];
-    if (!rows.length) throw new Error('No table rows found');
-
-    const headers = [...rows[0].querySelectorAll('td, th')].map(cell =>
-      cell?.innerText?.trim() || ''
-    );
+    const headers = [...rows[0].querySelectorAll('td, th')].map(td => td.textContent.trim().toLowerCase());
 
     const data = rows.slice(1).map(row => {
       const cells = [...row.querySelectorAll('td, th')];
       const obj = {};
       headers.forEach((key, i) => {
-        obj[key] = cells[i]?.innerText?.trim() || '';
+        obj[key] = cells[i]?.textContent?.trim() || '';
       });
       return obj;
     });
