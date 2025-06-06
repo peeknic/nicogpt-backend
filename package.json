@@ -1,9 +1,6 @@
 {
-  "name": "nicogpt-backend",
-  "version": "1.0.0",
   "type": "module",
   "dependencies": {
-    "jsdom": "^24.0.0",
     "csv-parse": "^5.5.0"
   }
 }
