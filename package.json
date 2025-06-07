@@ -1,9 +1,6 @@
 {
-  "name": "your-vercel-backend",
-  "version": "1.0.0",
   "type": "module",
   "dependencies": {
-    "csv-parse": "^5.5.4",
-    "cheerio": "^1.0.0-rc.12"
+    "csv-parse": "^5.5.0"
   }
 }
