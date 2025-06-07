@@ -48,22 +48,9 @@ export default async function handler(req: Request) {
           .replace(/\n{3,}/g, '\n\n')
           .trim()
 
-        mergedContent[title] = cleanedText
-
-      } catch (err) {
-        mergedContent[title] = { error: (err as Error).message }
-      }
-    }
-
-    return new Response(
-      JSON.stringify({ success: true, data: mergedContent }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } }
-    )
-
-  } catch (err: any) {
-    return new Response(
-      JSON.stringify({ success: false, error: err.message || 'Unknown server error' }),
-      { status: 500 }
-    )
-  }
-}
+        // remove boilerplate at the top from Google Docs web-published view
+        const lines = cleanedText.split('\n')
+        while (
+          lines[0]?.match(/Mit Google Docs veröffentlicht|Missbrauch melden|Weitere Informationen|Automatisch alle .* aktualisiert/i)
+        ) {
+          lines.shift()
