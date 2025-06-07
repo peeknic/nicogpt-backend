@@ -1,68 +1,83 @@
-// /api/all-docs-with-content.js
+import { NextResponse } from 'next/server'; // If you are using Vercel's new Next.js edge functions
+import fetch from 'node-fetch';
 
-import { parse } from 'csv-parse/sync';
-
-const CONTENT_INDEX_CSV_URL =
-  'https://docs.google.com/spreadsheets/d/e/2PACX-1vTO58XfLRFpTGk-gAGozsnwFKlUzKvJpVeMfyLtTLoYJcl6rN8feyuPmdZurZm7oR10LhNfz3m3VsJK/pub?output=csv';
-
-// Utility: fetch and parse a Google Doc published as HTML, strip formatting to plain text
-async function fetchGoogleDocContent(docUrl) {
-  const res = await fetch(docUrl);
-  const html = await res.text();
-  // Extract only content within <body>, remove all HTML tags, decode basic entities
-  const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
-  let body = bodyMatch ? bodyMatch[1] : html;
-  // Remove all tags, preserve basic line breaks and paragraphs
-  body = body.replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>|<\/h[1-6]>/gi, '\n');
-  body = body.replace(/<[^>]+>/g, '');
-  // Decode HTML entities for < > & "
-  body = body.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
-  // Collapse multiple newlines, trim
-  body = body.replace(/\n\s*\n+/g, '\n\n').trim();
-  return body;
-}
-
-// API handler
+// For Vercel Serverless Functions (not Next.js), you can use (req, res)
 export default async function handler(req, res) {
-  // 1. API key authentication
-  const apiKey = req.headers['authorization'];
-  if (!apiKey || apiKey !== `Bearer ${process.env.NICO_API_KEY}`) {
-    return res.status(401).json({ error: 'Unauthorized' });
+  // API Key check
+  const serverKey = process.env.NICO_GPT_API_KEY;
+  const clientKey =
+    req.headers['x-api-key'] ||
+    req.headers['X-API-KEY'] ||
+    req.headers['X-Api-Key'];
+  if (!clientKey || clientKey !== serverKey) {
+    return res.status(401).json({ success: false, message: 'Unauthorized' });
   }
 
-  try {
-    // 2. Fetch and parse the content index CSV
-    const csvRes = await fetch(CONTENT_INDEX_CSV_URL);
-    const csvText = await csvRes.text();
-    const records = parse(csvText, {
-      columns: true,
-      skip_empty_lines: true,
-    });
+  // Your content index CSV URL
+  const csvUrl =
+    'https://docs.google.com/spreadsheets/d/e/2PACX-1vTO58XfLRFpTGk-gAGozsnwFKlUzKvJpVeMfyLtTLoYJcl6rN8feyuPmdZurZm7oR10LhNfz3m3VsJK/pub?output=csv';
 
-    // 3. For each doc, fetch and clean its content
-    const results = await Promise.all(
-      records.map(async (row) => {
-        let docContent = '';
-        if (row.DocURL) {
-          try {
-            docContent = await fetchGoogleDocContent(row.DocURL);
-          } catch (e) {
-            docContent = '[Error loading document]';
-          }
+  try {
+    // Fetch the CSV index
+    const csvRes = await fetch(csvUrl);
+    if (!csvRes.ok) throw new Error('Failed to fetch CSV');
+    const csvText = await csvRes.text();
+
+    // Parse CSV (simple, but robust)
+    const rows = csvText
+      .split('\n')
+      .map((line) => line.split(','))
+      .filter((arr) => arr.length >= 4 && arr[1] && arr[3]);
+
+    // Remove the header
+    rows.shift();
+
+    // Fetch each published Google Doc and clean the text
+    const docs = await Promise.all(
+      rows.map(async ([category, title, summary, docUrl]) => {
+        try {
+          const docRes = await fetch(docUrl);
+          if (!docRes.ok) throw new Error('Failed to fetch doc');
+          const docHtml = await docRes.text();
+
+          // Remove formatting/junk HTML, just extract visible text
+          const textOnly = docHtml
+            .replace(/<style[\s\S]*?<\/style>/gi, '')
+            .replace(/<script[\s\S]*?<\/script>/gi, '')
+            .replace(/<[^>]+>/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+
+          return {
+            Title: title,
+            Category: category,
+            Summary: summary,
+            DocURL: docUrl,
+            DocContent: textOnly,
+          };
+        } catch (err) {
+          return {
+            Title: title,
+            Category: category,
+            Summary: summary,
+            DocURL: docUrl,
+            DocContent: '',
+            error: `Failed to fetch or parse doc: ${err.message}`,
+          };
         }
-        return {
-          Title: row.Title || '',
-          Category: row.Category || '',
-          Summary: row.Content || '',
-          DocURL: row.DocURL || '',
-          DocContent: docContent,
-        };
       })
     );
 
-    // 4. Respond with clean, structured data
-    res.status(200).json({ success: true, data: results });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    // Return everything
+    res.status(200).json({ success: true, data: docs });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
   }
 }
+
+// To support Vercel's default export for API routes:
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
