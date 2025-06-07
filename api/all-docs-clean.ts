@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import Papa from 'papaparse'
 
-// Use the native fetch (no need to import node-fetch)
+// Your content index published as CSV
 const INDEX_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTO58XfLRFpTGk-gAGozsnwFKlUzKvJpVeMfyLtTLoYJcl6rN8feyuPmdZurZm7oR10LhNfz3m3VsJK/pub?output=csv'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -11,19 +11,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const indexCsv = await indexRes.text()
     const parsedIndex = Papa.parse(indexCsv, { header: true }).data as any[]
-
-    const fetchAndParseDoc = async (title: string, docUrl: string) => {
-      try {
-        const res = await fetch(docUrl)
-        if (!res.ok) throw new Error(`Status ${res.status} on ${title}`)
-        const csv = await res.text()
-        const parsed = Papa.parse(csv, { header: true }).data
-        return parsed
-      } catch (err) {
-        console.error(`[ERROR] ${title}:`, err)
-        return { error: (err as Error).message }
-      }
-    }
 
     const mergedContent: Record<string, any> = {}
 
@@ -35,14 +22,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         continue
       }
 
-      console.log(`[FETCHING] ${title}`)
-      const data = await fetchAndParseDoc(title, docUrl)
-      mergedContent[title] = data
+      try {
+        const docRes = await fetch(docUrl)
+        if (!docRes.ok) throw new Error(`Failed to fetch ${title}: ${docRes.status}`)
+        const text = await docRes.text()
+        mergedContent[title] = text
+      } catch (err) {
+        console.error(`[ERROR] ${title}:`, err)
+        mergedContent[title] = { error: (err as Error).message }
+      }
     }
 
     res.status(200).json({ success: true, data: mergedContent })
+
   } catch (err: any) {
-    console.error('[FATAL] Failed in /api/all-docs:', err)
+    console.error('[FATAL] Failed in /api/all-docs-clean:', err)
     res.status(500).json({
       success: false,
       error: err.message || 'Unknown server error'
