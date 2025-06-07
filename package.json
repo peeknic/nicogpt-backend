@@ -1,6 +1,9 @@
 {
   "type": "module",
   "dependencies": {
-    "papaparse": "5.4.1"
+    "csv-parse": "^5.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.17"
   }
 }
