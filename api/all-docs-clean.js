@@ -1,59 +1,69 @@
 import { parse } from 'csv-parse/sync'
-import fetch from 'node-fetch'
 
-// ✅ Your live public CSV index URL
-const INDEX_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTO58XfLRFpTGk-gAGozsnwFKlUzKvJpVeMfyLtTLoYJcl6rN8feyuPmdZurZm7oR10LhNfz3m3VsJK/pub?output=csv'
+// Live Google Sheets CSV export URL
+const INDEX_URL =
+  'https://docs.google.com/spreadsheets/d/e/2PACX-1vTO58XfLRFpTGk-gAGozsnwFKlUzKvJpVeMfyLtTLoYJcl6rN8feyuPmdZurZm7oR10LhNfz3m3VsJK/pub?output=csv'
 
-export default async function handler(req, res) {
+export default async function handler(req: Request): Promise<Response> {
   try {
     const indexRes = await fetch(INDEX_URL)
     if (!indexRes.ok) {
-      return res.status(500).json({ success: false, error: `Failed to fetch index: ${indexRes.status}` })
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `Failed to fetch index: ${indexRes.status}`,
+        }),
+        { status: 500 }
+      )
     }
 
-    const indexCsv = await indexRes.text()
-    const parsedIndex = parse(indexCsv, {
+    const csvText = await indexRes.text()
+    const records = parse(csvText, {
       columns: true,
-      skip_empty_lines: true
+      skip_empty_lines: true,
     })
 
-    const results = {}
+    const results: Record<string, any> = {}
 
-    for (const row of parsedIndex) {
-      const title = row.Title?.trim()
-      const docUrl = row.DocURL?.trim()
+    for (const row of records) {
+      const { Title, DocURL } = row
 
-      if (!docUrl || !title) {
-        results[title || 'Untitled'] = { error: 'Missing docUrl or title' }
-        continue
-      }
+      if (!Title || !DocURL) continue
 
       try {
-        const textUrl = docUrl.replace(/\/pub.*$/, '/export?format=txt')
-        const docRes = await fetch(textUrl)
-
+        const docRes = await fetch(DocURL)
         if (!docRes.ok) {
-          results[title] = { error: `Fetch failed: ${docRes.status}` }
+          results[Title] = { error: `Failed to fetch doc: ${docRes.status}` }
           continue
         }
 
-        let text = await docRes.text()
-        // Remove Google Docs footer artifacts
-        text = text
-          .replace(/Mit Google Docs veröffentlicht.*$/, '')
-          .replace(/Missbrauch melden.*$/, '')
-          .replace(/Weitere Informationen.*$/, '')
-          .replace(/Automatisch alle .*$/, '')
-          .trim()
+        const text = await docRes.text()
 
-        results[title] = text
+        // Remove common Google Docs header/footer system noise
+        const cleanText = text.replace(
+          /^(Mit Google Docs veröffentlicht|Missbrauch melden|Weitere Informationen)[^\n]*\n?/gm,
+          ''
+        )
+
+        results[Title] = cleanText.trim()
       } catch (err) {
-        results[title] = { error: err.message }
+        results[Title] = {
+          error: `Fetch error: ${(err as Error).message}`,
+        }
       }
     }
 
-    return res.status(200).json({ success: true, data: results })
+    return new Response(JSON.stringify({ success: true, data: results }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })
   } catch (err) {
-    return res.status(500).json({ success: false, error: err.message })
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: (err as Error).message || 'Unexpected error',
+      }),
+      { status: 500 }
+    )
   }
 }
