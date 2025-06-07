@@ -17,17 +17,15 @@ export default async function handler(req: Request) {
     }
 
     const indexCsv = await indexRes.text()
-    const parsedIndex = Papa.parse(indexCsv, { header: true }).data as any[]
+    const parsedIndex = Papa.parse(indexCsv, { header: true }).data.filter(
+      (row) => row.docUrl && row.title
+    ) as any[]
 
     const mergedContent: Record<string, any> = {}
 
     for (const entry of parsedIndex) {
-      const title = entry.title?.trim() || entry.id?.trim() || 'Untitled'
-      const docUrl = entry.docUrl?.trim()
-      if (!docUrl) {
-        mergedContent[title] = { error: 'Missing docUrl' }
-        continue
-      }
+      const title = entry.title.trim()
+      const docUrl = entry.docUrl.trim()
 
       try {
         const docRes = await fetch(docUrl)
