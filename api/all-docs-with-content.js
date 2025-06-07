@@ -1,5 +1,5 @@
 import { parse } from 'csv-parse/sync';
-import cheerio from 'cheerio';
+import { load } from 'cheerio';
 
 export default async function handler(req, res) {
   const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTO58XfLRFpTGk-gAGozsnwFKlUzKvJpVeMfyLtTLoYJcl6rN8feyuPmdZurZm7oR10LhNfz3m3VsJK/pub?output=csv';
@@ -26,9 +26,8 @@ export default async function handler(req, res) {
         try {
           const docRes = await fetch(docUrl);
           const html = await docRes.text();
-          const $ = cheerio.load(html);
+          const $ = load(html);
           // Try to extract all text from Google's published doc
-          // Most content is inside <div id="contents">, fallback to body
           docContent =
             $('#contents').text().trim() ||
             $('body').text().trim() ||
