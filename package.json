@@ -1,10 +1,6 @@
 {
   "type": "module",
   "dependencies": {
-    "next": "13.4.12",
     "papaparse": "5.4.1"
-  },
-  "devDependencies": {
-    "typescript": "4.9.5"
   }
 }
