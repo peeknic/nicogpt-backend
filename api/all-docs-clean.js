@@ -1,69 +1,49 @@
-import { parse } from 'csv-parse/sync'
+// File: /api/all-docs-clean.js
 
-// Live Google Sheets CSV export URL
-const INDEX_URL =
-  'https://docs.google.com/spreadsheets/d/e/2PACX-1vTO58XfLRFpTGk-gAGozsnwFKlUzKvJpVeMfyLtTLoYJcl6rN8feyuPmdZurZm7oR10LhNfz3m3VsJK/pub?output=csv'
+import { parse } from 'csv-parse/sync';
+import fetch from 'node-fetch';
 
-export default async function handler(req: Request): Promise<Response> {
+const INDEX_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTO58XfLRFpTGk-gAGozsnwFKlUzKvJpVeMfyLtTLoYJcl6rN8feyuPmdZurZm7oR10LhNfz3m3VsJK/pub?output=csv';
+
+export default async function handler(req, res) {
   try {
-    const indexRes = await fetch(INDEX_URL)
+    const indexRes = await fetch(INDEX_CSV_URL);
     if (!indexRes.ok) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: `Failed to fetch index: ${indexRes.status}`,
-        }),
-        { status: 500 }
-      )
+      return res.status(500).json({ success: false, error: `Failed to fetch index: ${indexRes.status}` });
     }
 
-    const csvText = await indexRes.text()
-    const records = parse(csvText, {
+    const indexText = await indexRes.text();
+    const records = parse(indexText, {
       columns: true,
-      skip_empty_lines: true,
-    })
+      skip_empty_lines: true
+    });
 
-    const results: Record<string, any> = {}
+    const results = {};
 
     for (const row of records) {
-      const { Title, DocURL } = row
+      const title = row.Title || 'Untitled';
+      const url = row.DocURL;
 
-      if (!Title || !DocURL) continue
+      if (!url || !url.startsWith('https://')) {
+        results[title] = { error: 'Missing or invalid docUrl' };
+        continue;
+      }
 
       try {
-        const docRes = await fetch(DocURL)
+        const docRes = await fetch(url.replace(/\/pub$/, '/export?format=txt'));
         if (!docRes.ok) {
-          results[Title] = { error: `Failed to fetch doc: ${docRes.status}` }
-          continue
+          results[title] = { error: `Failed to fetch doc: ${docRes.status}` };
+          continue;
         }
-
-        const text = await docRes.text()
-
-        // Remove common Google Docs header/footer system noise
-        const cleanText = text.replace(
-          /^(Mit Google Docs veröffentlicht|Missbrauch melden|Weitere Informationen)[^\n]*\n?/gm,
-          ''
-        )
-
-        results[Title] = cleanText.trim()
+        const text = await docRes.text();
+        results[title] = text.trim();
       } catch (err) {
-        results[Title] = {
-          error: `Fetch error: ${(err as Error).message}`,
-        }
+        results[title] = { error: err.message };
       }
     }
 
-    return new Response(JSON.stringify({ success: true, data: results }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    })
-  } catch (err) {
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: (err as Error).message || 'Unexpected error',
-      }),
-      { status: 500 }
-    )
+    return res.status(200).json({ success: true, data: results });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
   }
 }
