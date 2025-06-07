@@ -2,11 +2,7 @@ import Papa from 'papaparse'
 
 const INDEX_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTO58XfLRFpTGk-gAGozsnwFKlUzKvJpVeMfyLtTLoYJcl6rN8feyuPmdZurZm7oR10LhNfz3m3VsJK/pub?output=csv'
 
-export const config = {
-  runtime: 'edge',
-}
-
-export default async function handler(req: Request) {
+export default async function handler(req: Request, res: Response) {
   try {
     const indexRes = await fetch(INDEX_URL)
     if (!indexRes.ok) {
@@ -33,7 +29,6 @@ export default async function handler(req: Request) {
         if (!docRes.ok) throw new Error(`Failed to fetch ${title}: ${docRes.status}`)
         const html = await docRes.text()
 
-        // crude but effective text extraction from <body>
         const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i)
         const rawBody = bodyMatch?.[1] || ''
         const cleanedText = rawBody
@@ -42,15 +37,40 @@ export default async function handler(req: Request) {
           .replace(/<\/?(?!p|br|h1|h2|h3|h4|h5|h6|ul|li|b|strong|i|em)[a-z][^>]*?>/gi, '')
           .replace(/<br\s*\/?>/gi, '\n')
           .replace(/<\/p>/gi, '\n\n')
-          .replace(/<[^>]*>/g, '') // strip any remaining tags
+          .replace(/<[^>]*>/g, '')
           .replace(/&nbsp;/g, ' ')
           .replace(/&amp;/g, '&')
           .replace(/\n{3,}/g, '\n\n')
           .trim()
 
-        // remove boilerplate at the top from Google Docs web-published view
         const lines = cleanedText.split('\n')
         while (
           lines[0]?.match(/Mit Google Docs veröffentlicht|Missbrauch melden|Weitere Informationen|Automatisch alle .* aktualisiert/i)
         ) {
           lines.shift()
+        }
+
+        const finalCleaned = lines
+          .join('\n')
+          .replace(/This content was.*?Google Drive\./gi, '')
+          .trim()
+
+        mergedContent[title] = finalCleaned
+
+      } catch (err) {
+        mergedContent[title] = { error: (err as Error).message }
+      }
+    }
+
+    return new Response(
+      JSON.stringify({ success: true, data: mergedContent }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    )
+
+  } catch (err: any) {
+    return new Response(
+      JSON.stringify({ success: false, error: err.message || 'Unknown server error' }),
+      { status: 500 }
+    )
+  }
+}
