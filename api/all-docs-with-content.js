@@ -10,7 +10,6 @@ export default async function handler(req, res) {
     const csvText = await response.text();
     const records = parse(csvText, { columns: true, skip_empty_lines: true });
 
-    // Helper to normalize column headers
     const firstRow = records[0] || {};
     const getKey = (name) => Object.keys(firstRow).find(k => k.trim().toLowerCase() === name.toLowerCase());
 
@@ -27,11 +26,20 @@ export default async function handler(req, res) {
           const docRes = await fetch(docUrl);
           const html = await docRes.text();
           const $ = load(html);
-          // Try to extract all text from Google's published doc
-          docContent =
-            $('#contents').text().trim() ||
-            $('body').text().trim() ||
-            '';
+
+          // Remove all non-visible or noise elements
+          $('style, script, header, footer, nav, noscript').remove();
+
+          // Only keep text from real document nodes
+          let textParts = [];
+          $('#contents, body').find('h1,h2,h3,h4,h5,h6,p,li').each((i, elem) => {
+            let text = $(elem).text().replace(/\s+/g, ' ').trim();
+            // Ignore truly empty or weird lines
+            if (text && !/^{.*}$/.test(text) && text.length > 2) textParts.push(text);
+          });
+
+          // Final cleanup: Remove duplicate lines and excessive whitespace
+          docContent = [...new Set(textParts)].join('\n\n').replace(/\n{3,}/g, '\n\n').trim();
         } catch (err) {
           docContent = '[Failed to load document]';
         }
