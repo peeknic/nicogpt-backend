@@ -1,49 +1,30 @@
-// File: /api/all-docs-clean.js
-
 import { parse } from 'csv-parse/sync';
-import fetch from 'node-fetch';
-
-const INDEX_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTO58XfLRFpTGk-gAGozsnwFKlUzKvJpVeMfyLtTLoYJcl6rN8feyuPmdZurZm7oR10LhNfz3m3VsJK/pub?output=csv';
 
 export default async function handler(req, res) {
-  try {
-    const indexRes = await fetch(INDEX_CSV_URL);
-    if (!indexRes.ok) {
-      return res.status(500).json({ success: false, error: `Failed to fetch index: ${indexRes.status}` });
-    }
+  const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTO58XfLRFpTGk-gAGozsnwFKlUzKvJpVeMfyLtTLoYJcl6rN8feyuPmdZurZm7oR10LhNfz3m3VsJK/pub?output=csv';
 
-    const indexText = await indexRes.text();
-    const records = parse(indexText, {
+  try {
+    const response = await fetch(csvUrl);
+    if (!response.ok) throw new Error('Failed to fetch CSV');
+
+    const csvText = await response.text();
+    const records = parse(csvText, {
       columns: true,
       skip_empty_lines: true
     });
 
-    const results = {};
-
+    // Assumes at least columns: Title, content
+    const data = {};
     for (const row of records) {
-      const title = row.Title || 'Untitled';
-      const url = row.DocURL;
-
-      if (!url || !url.startsWith('https://')) {
-        results[title] = { error: 'Missing or invalid docUrl' };
-        continue;
-      }
-
-      try {
-        const docRes = await fetch(url.replace(/\/pub$/, '/export?format=txt'));
-        if (!docRes.ok) {
-          results[title] = { error: `Failed to fetch doc: ${docRes.status}` };
-          continue;
-        }
-        const text = await docRes.text();
-        results[title] = text.trim();
-      } catch (err) {
-        results[title] = { error: err.message };
+      if (row.Title) {
+        data[row.Title] = {
+          content: row.content ?? ''
+        };
       }
     }
 
-    return res.status(200).json({ success: true, data: results });
+    res.status(200).json({ success: true, data });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: error.message });
   }
 }
