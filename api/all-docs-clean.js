@@ -13,12 +13,22 @@ export default async function handler(req, res) {
       skip_empty_lines: true
     });
 
-    // Assumes at least columns: Title, content
+    // Dynamically find the Title and Content columns (case and whitespace insensitive)
+    const firstRow = records[0] || {};
+    const keys = Object.keys(firstRow).map(k => k.trim().toLowerCase());
+    const titleKey = Object.keys(firstRow).find(
+      k => k.trim().toLowerCase() === 'title'
+    );
+    const contentKey = Object.keys(firstRow).find(
+      k => k.trim().toLowerCase() === 'content'
+    );
+
     const data = {};
     for (const row of records) {
-      if (row.Title) {
-        data[row.Title] = {
-          content: row.content ?? ''
+      const title = row[titleKey]?.trim();
+      if (title) {
+        data[title] = {
+          content: row[contentKey]?.trim() ?? ''
         };
       }
     }
