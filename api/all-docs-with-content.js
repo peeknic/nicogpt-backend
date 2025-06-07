@@ -1,62 +1,67 @@
-import { parse } from 'csv-parse/sync';
-import { load } from 'cheerio';
+// /api/all-docs-with-content.js
 
+import { parse } from 'csv-parse/sync';
+
+const CONTENT_INDEX_CSV_URL =
+  'https://docs.google.com/spreadsheets/d/e/2PACX-1vTO58XfLRFpTGk-gAGozsnwFKlUzKvJpVeMfyLtTLoYJcl6rN8feyuPmdZurZm7oR10LhNfz3m3VsJK/pub?output=csv';
+
+// Utility: fetch and parse a Google Doc published as HTML, strip formatting to plain text
+async function fetchGoogleDocContent(docUrl) {
+  const res = await fetch(docUrl);
+  const html = await res.text();
+  // Extract only content within <body>, remove all HTML tags, decode basic entities
+  const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+  let body = bodyMatch ? bodyMatch[1] : html;
+  // Remove all tags, preserve basic line breaks and paragraphs
+  body = body.replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>|<\/h[1-6]>/gi, '\n');
+  body = body.replace(/<[^>]+>/g, '');
+  // Decode HTML entities for < > & "
+  body = body.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+  // Collapse multiple newlines, trim
+  body = body.replace(/\n\s*\n+/g, '\n\n').trim();
+  return body;
+}
+
+// API handler
 export default async function handler(req, res) {
-  const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTO58XfLRFpTGk-gAGozsnwFKlUzKvJpVeMfyLtTLoYJcl6rN8feyuPmdZurZm7oR10LhNfz3m3VsJK/pub?output=csv';
+  // 1. API key authentication
+  const apiKey = req.headers['authorization'];
+  if (!apiKey || apiKey !== `Bearer ${process.env.NICO_API_KEY}`) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
 
   try {
-    const response = await fetch(csvUrl);
-    if (!response.ok) throw new Error('Failed to fetch CSV');
-    const csvText = await response.text();
-    const records = parse(csvText, { columns: true, skip_empty_lines: true });
+    // 2. Fetch and parse the content index CSV
+    const csvRes = await fetch(CONTENT_INDEX_CSV_URL);
+    const csvText = await csvRes.text();
+    const records = parse(csvText, {
+      columns: true,
+      skip_empty_lines: true,
+    });
 
-    const firstRow = records[0] || {};
-    const getKey = (name) => Object.keys(firstRow).find(k => k.trim().toLowerCase() === name.toLowerCase());
-
-    const data = [];
-    for (const row of records) {
-      const title = row[getKey('Title')]?.trim();
-      const category = row[getKey('Category')]?.trim();
-      const summary = row[getKey('Content')]?.trim();
-      const docUrl = row[getKey('DocURL')]?.trim();
-
-      let docContent = '';
-      if (docUrl) {
-        try {
-          const docRes = await fetch(docUrl);
-          const html = await docRes.text();
-          const $ = load(html);
-
-          // Remove all non-visible or noise elements
-          $('style, script, header, footer, nav, noscript').remove();
-
-          // Only keep text from real document nodes
-          let textParts = [];
-          $('#contents, body').find('h1,h2,h3,h4,h5,h6,p,li').each((i, elem) => {
-            let text = $(elem).text().replace(/\s+/g, ' ').trim();
-            // Ignore truly empty or weird lines
-            if (text && !/^{.*}$/.test(text) && text.length > 2) textParts.push(text);
-          });
-
-          // Final cleanup: Remove duplicate lines and excessive whitespace
-          docContent = [...new Set(textParts)].join('\n\n').replace(/\n{3,}/g, '\n\n').trim();
-        } catch (err) {
-          docContent = '[Failed to load document]';
+    // 3. For each doc, fetch and clean its content
+    const results = await Promise.all(
+      records.map(async (row) => {
+        let docContent = '';
+        if (row.DocURL) {
+          try {
+            docContent = await fetchGoogleDocContent(row.DocURL);
+          } catch (e) {
+            docContent = '[Error loading document]';
+          }
         }
-      }
-
-      if (title) {
-        data.push({
-          Title: title,
-          Category: category || '',
-          Summary: summary || '',
-          DocURL: docUrl || '',
+        return {
+          Title: row.Title || '',
+          Category: row.Category || '',
+          Summary: row.Content || '',
+          DocURL: row.DocURL || '',
           DocContent: docContent,
-        });
-      }
-    }
+        };
+      })
+    );
 
-    res.status(200).json({ success: true, data });
+    // 4. Respond with clean, structured data
+    res.status(200).json({ success: true, data: results });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
