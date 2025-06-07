@@ -1,4 +1,4 @@
-import Papa from 'papaparse'
+import { parse } from 'csv-parse/sync'
 
 const INDEX_URL =
   'https://docs.google.com/spreadsheets/d/e/2PACX-1vTO58XfLRFpTGk-gAGozsnwFKlUzKvJpVeMfyLtTLoYJcl6rN8feyuPmdZurZm7oR10LhNfz3m3VsJK/pub?output=csv'
@@ -14,7 +14,10 @@ export default async function handler(req: Request): Promise<Response> {
     }
 
     const indexCsv = await indexRes.text()
-    const parsedIndexRaw = Papa.parse(indexCsv, { header: true }).data as any[]
+    const parsedIndexRaw = parse(indexCsv, {
+      columns: true,
+      skip_empty_lines: true
+    }) as any[]
 
     const parsedIndex = parsedIndexRaw.filter((row) => {
       const title = row['Title']?.trim()
