@@ -1,13 +1,20 @@
-import type { NextApiRequest, NextApiResponse } from 'next'
 import Papa from 'papaparse'
 
-// Your content index published as CSV
 const INDEX_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTO58XfLRFpTGk-gAGozsnwFKlUzKvJpVeMfyLtTLoYJcl6rN8feyuPmdZurZm7oR10LhNfz3m3VsJK/pub?output=csv'
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export const config = {
+  runtime: 'edge',
+}
+
+export default async function handler(req: Request) {
   try {
     const indexRes = await fetch(INDEX_URL)
-    if (!indexRes.ok) throw new Error(`Failed to fetch index: ${indexRes.status}`)
+    if (!indexRes.ok) {
+      return new Response(
+        JSON.stringify({ success: false, error: `Failed to fetch index: ${indexRes.status}` }),
+        { status: 500 }
+      )
+    }
 
     const indexCsv = await indexRes.text()
     const parsedIndex = Papa.parse(indexCsv, { header: true }).data as any[]
@@ -28,18 +35,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const text = await docRes.text()
         mergedContent[title] = text
       } catch (err) {
-        console.error(`[ERROR] ${title}:`, err)
         mergedContent[title] = { error: (err as Error).message }
       }
     }
 
-    res.status(200).json({ success: true, data: mergedContent })
+    return new Response(
+      JSON.stringify({ success: true, data: mergedContent }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    )
 
   } catch (err: any) {
-    console.error('[FATAL] Failed in /api/all-docs-clean:', err)
-    res.status(500).json({
-      success: false,
-      error: err.message || 'Unknown server error'
-    })
+    return new Response(
+      JSON.stringify({ success: false, error: err.message || 'Unknown server error' }),
+      { status: 500 }
+    )
   }
 }
