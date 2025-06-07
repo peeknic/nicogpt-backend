@@ -1,8 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
-import fetch from 'node-fetch'
 import Papa from 'papaparse'
 
-// Public CSV export of your Google Sheet index
+// Use the native fetch (no need to import node-fetch)
 const INDEX_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTO58XfLRFpTGk-gAGozsnwFKlUzKvJpVeMfyLtTLoYJcl6rN8feyuPmdZurZm7oR10LhNfz3m3VsJK/pub?output=csv'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
